@@ -20,8 +20,8 @@ class InvalidShowtimeSelectionException extends Exception {
     }
 }
 
-class InsufficientTicketsException extends Exception {
-    public InsufficientTicketsException(int available) {
+class OverbookingException extends Exception {
+    public OverbookingException(int available) {
         super("Only "+available+" tickets are available.");
     }
 }
@@ -199,7 +199,7 @@ class POS{
                 }
 
                 if (tickets>selectedShow.availableSeats) {
-                    throw new InsufficientTicketsException( selectedShow.availableSeats);
+                    throw new OverbookingException( selectedShow.availableSeats);
                 }
 
                 selectedShow.availableSeats-=tickets;
@@ -207,7 +207,7 @@ class POS{
                 System.out.printf("Success! Total cost: %.2f.\n", totalCost);
                 break;
 
-            } catch (InsufficientTicketsException e) {
+            } catch (OverbookingException e) {
                 System.out.println(e.getMessage());
             } catch (NumberFormatException e) {
                 System.out.println("ERROR: Please enter a numeric value for tickets.");
