@@ -40,7 +40,9 @@ class Movie implements Serializable{
     public void addShowtime(Showtime s){
         showtimes.put(s.date+s.time,s);
     }
-    public Map<String,Showtime> getShowtimes(){return showtimes;}
+    public Map<String,Showtime> getShowtimes() {
+        return showtimes;
+    }
 }
 
 class DBService{
@@ -101,6 +103,7 @@ class POS{
         System.out.println("2. Exit");
         System.out.print("Enter choice: ");
     }
+
     public void browseMovies(){
         Collection<Movie> movies=DBService.getAllMovies();
         System.out.println("\nCODE       NAME                 GENRE");
@@ -108,6 +111,7 @@ class POS{
         for(Movie m:movies){
             System.out.printf("%-10s %-20s %-10s\n",m.code,m.name,m.genre);
         }
+
         System.out.print("\nEnter Movie Code to select: ");
         String inputCode=sc.nextLine().trim().toUpperCase();
         try{
@@ -115,8 +119,46 @@ class POS{
             if(selectedMovie==null){
                 throw new InvalidMovieCodeException(inputCode);
             }
-            System.out.println("\n>>> MOVIE SELECTED: "+selectedMovie.name);
-        }catch(InvalidMovieCodeException e){
+
+            System.out.println("\n>>> AVAILABLE SHOWTIMES FOR: " + selectedMovie.name);
+            List<Showtime> showList= new ArrayList<>(selectedMovie.getShowtimes().values());
+        
+            for (int i=0; i<showList.size(); i++) {
+                Showtime s=showList.get(i);
+                System.out.printf("[%d] Date: %s | Time: %s | Price: %.2f | Available: %d\n", 
+                                i + 1, s.date, s.time, s.ticketPrice, s.availableSeats);
+            }
+
+            System.out.print("\nSelect Showtime : ");
+            int timeChoice=Integer.parseInt(sc.nextLine())-1;
+
+            if (timeChoice<0 || timeChoice>=showList.size()) {
+                System.out.println("Invalid selection.");
+                return;
+            }
+
+            Showtime selectedShow=showList.get(timeChoice);
+
+            while (true) {
+                System.out.print("Enter number of tickets to buy: ");
+                int tickets = Integer.parseInt(sc.nextLine());
+
+                if (tickets <= 0) {
+                    System.out.println("Please enter a valid number of tickets.");
+                } else if (tickets <= selectedShow.availableSeats) {
+                    selectedShow.availableSeats-=tickets;
+                    double totalCost = tickets * selectedShow.ticketPrice;
+                    System.out.printf("Success! Total cost: %.2f.\n",totalCost);
+                    break;
+                } else {
+                    System.out.println("Only "+selectedShow.availableSeats +" left.");
+                }
+            }
+        } catch (InvalidMovieCodeException e) {
+            System.out.println(e.getMessage());
+        } catch (NumberFormatException e) {
+            System.out.println("ERROR: Please enter a valid number.");
+        } catch (Exception e) {
             System.out.println("ERROR: "+e.getMessage());
         }
     }
@@ -136,13 +178,13 @@ class POS{
                     case 1:browseMovies();break;
                     case 2:System.out.println("Exiting system...");break;
                 }
-            }catch(NumberFormatException e){
+            } catch(NumberFormatException e){
                 System.out.println("Error: Please enter a numeric value.");
                 choice=0;
-            }catch(InvalidMenuChoiceException e){
+            } catch (InvalidMenuChoiceException e){
                 System.out.println(e.getMessage());
                 choice=0;
-            }catch(Exception e){
+            } catch (Exception e){
                 System.out.println("Unexpected error : "+e.getMessage());
                 choice=0;
             }
