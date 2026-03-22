@@ -114,9 +114,9 @@ class POS{
 
     public void displayMenu(){
         System.out.println("\n--- MOVIE RESERVATION SYSTEM ---");
-        System.out.println("1. Browse Available Movies");
-        System.out.println("2. Exit");
-        System.out.print("Enter choice: ");
+        System.out.println("[1]. Browse Available Movies");
+        System.out.println("[2] Exit");
+        System.out.print(">>> Enter choice: ");
     }
 
     public void browseMovies(){
@@ -127,7 +127,7 @@ class POS{
             System.out.printf("%-10s %-20s %-10s\n",m.code,m.name,m.genre);
         }
 
-        System.out.print("\nEnter Movie Code to select: ");
+        System.out.print("\n>>> Enter Movie Code to select: ");
         String inputCode=sc.nextLine().trim().toUpperCase();
         try{
             Movie selectedMovie=DBService.getMovie(inputCode);
@@ -137,11 +137,11 @@ class POS{
 
             System.out.println("\n>>> AVAILABLE SHOWTIMES FOR: " + selectedMovie.name);
             List<Showtime> showList= new ArrayList<>(selectedMovie.getShowtimes().values());
-        
+            
+            System.out.printf("      Date       Time       Price      Available\n");
             for (int i=0; i<showList.size(); i++) {
                 Showtime s=showList.get(i);
-                System.out.printf("[%d] Date: %s | Time: %s | Price: %.2f | Available: %d\n", 
-                                i + 1, s.date, s.time, s.ticketPrice, s.availableSeats);
+                System.out.printf("[%d] %-12s %-10s %-10.2f %-10d\n",i+1, s.date, s.time, s.ticketPrice, s.availableSeats);
             }
 
             System.out.print("\nSelect Showtime : ");
