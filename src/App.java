@@ -14,6 +14,12 @@ class InvalidMovieCodeException extends Exception{
     }
 }
 
+class InsufficientTicketsException extends Exception {
+    public InsufficientTicketsException(int available) {
+        super("Only "+available+" tickets are available.");
+    }
+}
+
 class Showtime implements Serializable{
     public String date,time;
     public int totalSeats,availableSeats;
@@ -144,7 +150,7 @@ class POS{
                 System.out.printf("[%d] %-12s %-10s %-10.2f %-10d\n",i+1, s.date, s.time, s.ticketPrice, s.availableSeats);
             }
 
-            System.out.print("\nSelect Showtime : ");
+            System.out.print("\n>>> Select Showtime : ");
             int timeChoice=Integer.parseInt(sc.nextLine())-1;
 
             if (timeChoice<0 || timeChoice>=showList.size()) {
@@ -155,21 +161,24 @@ class POS{
             Showtime selectedShow=showList.get(timeChoice);
 
             while (true) {
-                System.out.print("Enter number of tickets to buy: ");
+                System.out.print(">>> Enter number of tickets to buy: ");
                 int tickets = Integer.parseInt(sc.nextLine());
 
                 if (tickets <= 0) {
-                    System.out.println("Please enter a valid number of tickets.");
-                } else if (tickets <= selectedShow.availableSeats) {
-                    selectedShow.availableSeats-=tickets;
-                    double totalCost = tickets * selectedShow.ticketPrice;
-                    System.out.printf("Success! Total cost: %.2f.\n",totalCost);
-                    break;
-                } else {
-                    System.out.println("Only "+selectedShow.availableSeats +" left.");
+                    System.out.println("Please enter a positive number of tickets.");
                 }
+
+                if (tickets > selectedShow.availableSeats) {
+                    throw new InsufficientTicketsException(selectedShow.availableSeats);
+                }
+
+                selectedShow.availableSeats-=tickets;
+                double totalCost = tickets * selectedShow.ticketPrice;
+                System.out.printf("Success! Total cost: %.2f.\n",totalCost);
+                break;
             }
-        } catch (InvalidMovieCodeException e) {
+
+        } catch (InvalidMovieCodeException | InsufficientTicketsException e) {
             System.out.println(e.getMessage());
         } catch (NumberFormatException e) {
             System.out.println("ERROR: Please enter a valid number.");
