@@ -1,6 +1,7 @@
 import java.io.*;
 import java.util.*;
 
+
 class InvalidMenuChoiceException extends Exception{
     public InvalidMenuChoiceException(String choice){
         super("Choice \""+choice+"\" is not a valid menu option.");
@@ -50,7 +51,7 @@ class DBService{
     private static Map<String,Movie> movieRepository=new LinkedHashMap<>();
 
     public boolean readData() {
-        String file="C:\\Users\\MSI\\Downloads\\Exception Handling Lab\\MovieTicket\\src\\Movie Reservation Dataset.csv";
+        String file="/home/lasan/Dev/MovieTicket/src/Movie Reservation Dataset.csv";
 
         try(BufferedReader br=new BufferedReader(new FileReader(file))){
 
@@ -94,8 +95,22 @@ class DBService{
 }
 
 class POS{
+
+    private static final int TIMEOUT = 60;
     private Scanner sc=new Scanner(System.in);
     private int choice=0;
+    private Timer timer = new Timer();
+    private TimerTask task = new TimerTask(){
+        @Override
+        public void run() {
+            saveSession();
+        }
+    };
+
+
+    private void saveSession(){
+
+    }
 
     public void displayMenu(){
         System.out.println("\n--- MOVIE RESERVATION SYSTEM ---");
@@ -169,6 +184,8 @@ class POS{
 
             try{
                 String input=sc.nextLine();
+                timer.cancel();
+                timer.schedule(task,TIMEOUT );
                 choice=Integer.parseInt(input);
 
                 if(choice!=1 && choice!=2){
@@ -193,6 +210,7 @@ class POS{
 }
 
 public class App{
+
     public static void main(String[] args){
         DBService db=new DBService();
         if(db.readData()){
