@@ -107,13 +107,105 @@ class DBService{
     }
 }
 
+class BrowseHelper {
+
+    public static Movie selectMovie(Scanner sc) {
+        Collection<Movie> movies=DBService.getAllMovies();
+        Movie selectedMovie=null;
+
+        while (selectedMovie==null) {
+            System.out.println("\nCODE       NAME                 GENRE");
+            System.out.println("------------------------------------------");
+            for (Movie m : movies) {
+                System.out.printf("%-10s %-20s %-10s\n", m.code, m.name, m.genre);
+            }
+
+            System.out.print("\n>>> Enter Movie Code to select (or 'BACK' to return): ");
+            String inputCode=sc.nextLine().trim().toUpperCase();
+
+            if (inputCode.equals("BACK")) return null;
+
+            try {
+                selectedMovie=DBService.getMovie(inputCode);
+                if (selectedMovie==null) {
+                    throw new InvalidMovieCodeException(inputCode);
+                }
+            } catch (InvalidMovieCodeException e) {
+                System.out.println(e.getMessage());
+            }
+        }
+        return selectedMovie;
+    }
+
+    public static Showtime selectShowtime(Scanner sc, Movie selectedMovie) {
+        List<Showtime> showList=new ArrayList<>(selectedMovie.getShowtimes().values());
+        Showtime selectedShow=null;
+
+        while (selectedShow==null) {
+            System.out.println("\n>>> AVAILABLE SHOWTIMES FOR: " + selectedMovie.name);
+            System.out.printf("      Date       Time       Price      Available\n");
+            for (int i=0; i < showList.size(); i++) {
+                Showtime s=showList.get(i);
+                System.out.printf("[%d] %-12s %-10s %-10.2f %-10d\n", i + 1, s.date, s.time, s.ticketPrice, s.availableSeats);
+            }
+
+            System.out.print("\n>>> Select Showtime number (or 'BACK' to return): ");
+            try {
+                String inputCode=sc.nextLine().trim().toUpperCase();
+                if (inputCode.equals("BACK")) return null;
+
+                int timeChoice=Integer.parseInt(inputCode) - 1;
+
+                if (timeChoice<0 || timeChoice>=showList.size()) {
+                    throw new InvalidShowtimeSelectionException(inputCode);
+                } else {
+                    selectedShow=showList.get(timeChoice);
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("ERROR: Please enter a valid number for the showtime.");
+            } catch (InvalidShowtimeSelectionException e) {
+                System.out.println(e.getMessage());
+            }
+        }
+        return selectedShow;
+    }
+
+    public static void processTickets(Scanner sc, Showtime selectedShow) {
+        while (true) {
+            try {
+                System.out.print(">>> Enter number of tickets to buy: ");
+                int tickets=Integer.parseInt(sc.nextLine());
+
+                if (tickets<=0) {
+                    System.out.println("Please enter a positive number of tickets.");
+                    continue;
+                }
+
+                if (tickets>selectedShow.availableSeats) {
+                    throw new OverbookingException(selectedShow.availableSeats);
+                }
+
+                selectedShow.availableSeats -= tickets;
+                double totalCost=tickets * selectedShow.ticketPrice;
+                System.out.printf("Success! Total cost: %.2f.\n", totalCost);
+                break;
+
+            } catch (OverbookingException e) {
+                System.out.println(e.getMessage());
+            } catch (NumberFormatException e) {
+                System.out.println("ERROR: Please enter a numeric value for tickets.");
+            }
+        }
+    }
+}
+
 class POS{
 
-    private static final int TIMEOUT = 60;
+    private static final int TIMEOUT=60;
     private Scanner sc=new Scanner(System.in);
     private int choice=0;
-    private Timer timer = new Timer();
-    private TimerTask task = new TimerTask(){
+    private Timer timer=new Timer();
+    private TimerTask task=new TimerTask(){
         @Override
         public void run() {
             saveSession();
@@ -133,86 +225,13 @@ class POS{
     }
 
     public void browseMovies() {
-        Collection<Movie> movies=DBService.getAllMovies();
-        Movie selectedMovie=null;
+        Movie selectedMovie=BrowseHelper.selectMovie(sc);
+        if (selectedMovie == null) return;
 
-        while (selectedMovie==null) {
-            System.out.println("\nCODE       NAME                 GENRE");
-            System.out.println("------------------------------------------");
-            for (Movie m : movies) {
-                System.out.printf("%-10s %-20s %-10s\n", m.code, m.name, m.genre);
-            }
+        Showtime selectedShow=BrowseHelper.selectShowtime(sc, selectedMovie);
+        if (selectedShow == null) return;
 
-            System.out.print("\n>>> Enter Movie Code to select (or 'BACK' to return): ");
-            String inputCode=sc.nextLine().trim().toUpperCase();
-            
-            if (inputCode.equals("BACK")) return;
-
-            try {
-                selectedMovie=DBService.getMovie(inputCode);
-                if(selectedMovie==null) {
-                    throw new InvalidMovieCodeException(inputCode);
-                }
-            } catch (InvalidMovieCodeException e) {
-                System.out.println(e.getMessage());
-            }
-        }
-
-        List<Showtime> showList=new ArrayList<>(selectedMovie.getShowtimes().values());
-        Showtime selectedShow=null;
-
-        while (selectedShow==null) {
-            System.out.println("\n>>> AVAILABLE SHOWTIMES FOR: "+selectedMovie.name);
-            System.out.printf("      Date       Time       Price      Available\n");
-            for (int i=0; i<showList.size(); i++) {
-                Showtime s=showList.get(i);
-                System.out.printf("[%d] %-12s %-10s %-10.2f %-10d\n", i+1, s.date, s.time,s.ticketPrice, s.availableSeats);
-            }
-
-            System.out.print("\n>>> Select Showtime number (or 'BACK' to return): ");
-            try {
-                String inputCode=sc.nextLine().trim().toUpperCase();
-                if (inputCode.equals("BACK")) return;
-
-                int timeChoice=Integer.parseInt(inputCode)-1;
-
-                if (timeChoice<0 || timeChoice>=showList.size()) {
-                    throw new InvalidShowtimeSelectionException(inputCode);
-                } else {
-                    selectedShow = showList.get(timeChoice);
-                }
-            } catch (NumberFormatException e) {
-                System.out.println("ERROR: Please enter a valid number for the showtime.");
-            } catch (InvalidShowtimeSelectionException e) {
-                System.out.println(e.getMessage());
-            }
-        }
-
-        while (true) {
-            try {
-                System.out.print(">>> Enter number of tickets to buy: ");
-                int tickets=Integer.parseInt(sc.nextLine());
-
-                if (tickets<=0) {
-                    System.out.println("Please enter a positive number of tickets.");
-                    continue;
-                }
-
-                if (tickets>selectedShow.availableSeats) {
-                    throw new OverbookingException( selectedShow.availableSeats);
-                }
-
-                selectedShow.availableSeats-=tickets;
-                double totalCost=tickets*selectedShow.ticketPrice;
-                System.out.printf("Success! Total cost: %.2f.\n", totalCost);
-                break;
-
-            } catch (OverbookingException e) {
-                System.out.println(e.getMessage());
-            } catch (NumberFormatException e) {
-                System.out.println("ERROR: Please enter a numeric value for tickets.");
-            }
-        }
+        BrowseHelper.processTickets(sc, selectedShow);
     }
 
     public void eventLoop(){
