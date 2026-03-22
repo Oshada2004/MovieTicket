@@ -221,8 +221,8 @@ class POS{
 
             try{
                 String input=sc.nextLine();
-                //timer.cancel();
-                //timer.schedule(task,TIMEOUT );
+                timer.cancel();
+                timer.schedule(task,TIMEOUT );
                 choice=Integer.parseInt(input);
 
                 if(choice!=1 && choice!=2){
