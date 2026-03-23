@@ -29,6 +29,7 @@ class OverbookingException extends Exception {
 class Showtime implements Serializable{
     public String date,time;
     public int totalSeats,availableSeats;
+    ArrayList<Integer> reservedSeats;
     public double ticketPrice;
 
     public Showtime(String date,String time,int totalSeats,int availableSeats,double ticketPrice){
@@ -37,6 +38,7 @@ class Showtime implements Serializable{
         this.totalSeats=totalSeats;
         this.availableSeats=availableSeats;
         this.ticketPrice=ticketPrice;
+        this.reservedSeats = new ArrayList<>();
     }
 }
 
@@ -57,15 +59,30 @@ class Movie implements Serializable{
         return showtimes;
     }
 }
+class MovieRepository implements Serializable{
+    public Map<String, Movie> getMr() {
+        return mr;
+    }
 
-class DBService{
+    public void setMr(Map<String, Movie> mr) {
+        this.mr = mr;
+    }
 
-    private static Map<String,Movie> movieRepository=new LinkedHashMap<>();
+    private Map<String,Movie>  mr = new LinkedHashMap<>();
+
+    public MovieRepository(Map<String, Movie> mr) {
+        this.mr = mr;
+    }
+}
+
+class DBService {
+
+    private static MovieRepository mr;
 
     public boolean readData() {
-        //String file="/home/lasan/Dev/MovieTicket/src/Movie Reservation Dataset.csv";
-        String file="C:\\Users\\MSI\\Downloads\\Exception Handling Lab\\MovieTicket\\src\\Movie Reservation Dataset.csv";
-
+        String file="/home/lasan/Dev/MovieTicket/src/Movie Reservation Dataset.csv";
+        //String file="C:\\Users\\MSI\\Downloads\\Exception Handling Lab\\MovieTicket\\src\\Movie Reservation Dataset.csv";
+        LinkedHashMap<String, Movie> map = new LinkedHashMap<>();
         try(BufferedReader br=new BufferedReader(new FileReader(file))){
 
             String line;
@@ -84,10 +101,11 @@ class DBService{
                 String lang=data[7];
                 String genre=data[8];
 
-                Movie movie=movieRepository.getOrDefault(code,new Movie(code,name,lang,genre));
+                Movie movie=map.getOrDefault(code,new Movie(code,name,lang,genre));
                 movie.addShowtime(new Showtime(date,time,total,avail,price));
-                movieRepository.put(code,movie);
+                map.put(code,movie);
             }
+            mr = new MovieRepository(map);
         } catch(FileNotFoundException e) {
             System.err.println("The file \""+file+"\" is not found.");
             return false;
@@ -99,11 +117,30 @@ class DBService{
     }
 
     public static Collection<Movie> getAllMovies(){
-        return movieRepository.values();
+        return mr.getMr().values();
     }
 
     public static Movie getMovie(String code){
-        return movieRepository.get(code);
+        return mr.getMr().get(code);
+    }
+
+    public static void saveState(){
+        try (ObjectOutputStream oos =
+                new ObjectOutputStream(new FileOutputStream("mr.ser"))){
+            oos.writeObject(mr);
+        } catch (IOException e){
+            System.out.println("Something went wrong while saving");
+        }
+    }
+    public static void loadState(){
+        try (ObjectInputStream ois =
+                     new ObjectInputStream(new FileInputStream("mr.ser"))) {
+
+            mr = (MovieRepository) ois.readObject();
+
+        } catch (Exception e) {
+            System.out.println("Something went wrong while loading save");
+        }
     }
 }
 
@@ -146,7 +183,8 @@ class BrowseHelper {
             System.out.printf("      Date       Time       Price      Available\n");
             for (int i=0; i < showList.size(); i++) {
                 Showtime s=showList.get(i);
-                System.out.printf("[%d] %-12s %-10s %-10.2f %-10d\n", i + 1, s.date, s.time, s.ticketPrice, s.availableSeats);
+                System.out.printf("[%d] %-12s %-10s %-10.2f %-10d\n", i + 1, s.date, s.time, s.ticketPrice,
+                        s.availableSeats - s.reservedSeats.size());
             }
 
             System.out.print("\n>>> Select Showtime number (or 'BACK' to return): ");
@@ -173,27 +211,44 @@ class BrowseHelper {
     public static void processTickets(Scanner sc, Showtime selectedShow) {
         while (true) {
             try {
-                System.out.print(">>> Enter number of tickets to buy: ");
-                int tickets=Integer.parseInt(sc.nextLine());
+                System.out.println("Available seats: ");
+                for (int i = 1; i <= selectedShow.availableSeats; i++){
 
-                if (tickets<=0) {
+                    if (!selectedShow.reservedSeats.contains(i)) {
+                        System.out.print(i + " ");
+                    } else {
+                        // to keep spacing consistent
+                        System.out.print(" ".repeat(Integer.toString(i).length()) + " ");
+
+                    };
+                    if (i%8==0) System.out.print("\n");
+                }
+                System.out.println("\n>>>> Enter a space seperated list of tickets to select your seats");
+                ArrayList<Integer>  seats = new ArrayList<>();
+                String l = sc.nextLine();
+                for (String s: l.split(" ")){
+                    seats.add(Integer.parseInt(s));
+                }
+
+                if (seats.isEmpty()) {
                     System.out.println("Please enter a positive number of tickets.");
                     continue;
                 }
 
-                if (tickets>selectedShow.availableSeats) {
+                if (seats.size()>selectedShow.availableSeats) {
                     throw new OverbookingException(selectedShow.availableSeats);
                 }
 
-                selectedShow.availableSeats -= tickets;
-                double totalCost=tickets * selectedShow.ticketPrice;
+                selectedShow.reservedSeats.addAll(seats);
+
+                double totalCost=seats.size() * selectedShow.ticketPrice;
                 System.out.printf("Success! Total cost: %.2f.\n", totalCost);
                 break;
 
             } catch (OverbookingException e) {
                 System.out.println(e.getMessage());
             } catch (NumberFormatException e) {
-                System.out.println("ERROR: Please enter a numeric value for tickets.");
+                System.out.println("ERROR: Please enter numeric values for seats.");
             }
         }
     }
@@ -204,17 +259,47 @@ class POS{
     private static final int TIMEOUT=60;
     private Scanner sc=new Scanner(System.in);
     private int choice=0;
-    private Timer timer=new Timer();
-    private TimerTask task=new TimerTask(){
-        @Override
-        public void run() {
-            saveSession();
+    private Timer timer = new Timer(true);
+    private TimerTask currentTask;
+    private boolean sleeping = false;
+
+    private synchronized void resetTimer() {
+        if (currentTask != null) {
+            currentTask.cancel();
         }
-    };
 
+        currentTask = new TimerTask() {
+            @Override
+            public void run() {
+                saveSession();
+            }
+        };
 
-    private void saveSession(){
+        timer.schedule(currentTask, TIMEOUT);
+    }
 
+    private synchronized void saveSession() {
+        if (!sleeping) {
+            DBService.saveState();
+            sleeping = true;
+            System.out.println("\n[Session saved due to inactivity]");
+        }
+    }
+
+    private synchronized void wakeSessionIfNeeded() {
+        if (sleeping) {
+            DBService.loadState();
+            sleeping = false;
+            System.out.println("[Session restored]");
+        }
+    }
+
+    private String readLine() {
+        resetTimer();                 // start/restart inactivity countdown
+        String input = sc.nextLine(); // blocks until user types something
+        wakeSessionIfNeeded();        // if timeout happened while waiting, restore
+        resetTimer();                 // restart countdown after activity
+        return input;
     }
 
     public void displayMenu(){
@@ -239,9 +324,7 @@ class POS{
             displayMenu();
 
             try{
-                String input=sc.nextLine();
-                timer.cancel();
-                timer.schedule(task,TIMEOUT );
+                String input= readLine();
                 choice=Integer.parseInt(input);
 
                 if(choice!=1 && choice!=2){
@@ -252,7 +335,7 @@ class POS{
                     case 2:System.out.println("Exiting system...");break;
                 }
             } catch(NumberFormatException e){
-                System.out.println("Error: Please enter a numeric value.");
+                System.out.println("Error: Please enter a numeric choice.");
                 choice=0;
             } catch (InvalidMenuChoiceException e){
                 System.out.println(e.getMessage());
